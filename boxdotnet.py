@@ -192,13 +192,13 @@ class BoxDotNet(object):
                 url = _self.END_POINT
                 arg["action"] = _method
                 postData = _self.__url_encode_params(params=arg)
-                print "--url---------------------------------------------"
-                print url
-                print "--postData----------------------------------------"
-                print postData
+                # print "--url---------------------------------------------"
+                # print url
+                # print "--postData----------------------------------------"
+                # print postData
                 f = urllib.urlopen(url + postData)
                 data = f.read()
-                print "--response----------------------------------------"
+                # print "--response----------------------------------------"
                 
 #                print data
                 f.close()

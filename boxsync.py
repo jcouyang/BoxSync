@@ -1,5 +1,4 @@
 #!/usr/bin/python
-#coding:utf-8
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -18,13 +17,88 @@ SHARE = ''
 CONFIG=None
 BOX=None
 ACDATA=None
-#中文ok
 class BoxError(Exception):
     """Exception class for errors received from Facebook."""
     pass
 
 class SyncEventHandler(FileSystemEventHandler):
-    
+
+    def on_moved(self, event):
+        global ACDATA
+        """Called when a file or a directory is moved or renamed.
+
+        :param event:
+            Event representing file/directory movement.
+        :type event:
+            :class:`DirMovedEvent` or :class:`FileMovedEvent`
+        """
+        super(SyncEventHandler, self).on_moved(event)
+        cwd = event.src_path.replace(SYNC_FOLDER,'')
+        box_cwd=BOX_FOLDER+cwd
+        dest= event.dest_path.replace(SYNC_FOLDER,'')
+        box_dest=BOX_FOLDER+dest
+        parent,base = os.path.split(box_dest)
+        
+        what = 'directory' if event.is_directory else 'file'
+        target='folder' if event.is_directory else 'file'
+        if os.path.split(event.src_path)[0]==os.path.split(event.dest_path):
+            # rename
+            
+            logging.info("Renaming %s %s to %s", what, cwd,dest)
+            re = BOX.rename(
+                target=target,
+                target_id=ACDATA[box_cwd],
+                new_name=base,
+                api_key=API_KEY,
+                auth_token=AUTH_TOKEN)
+            status = rs.status[0].elementText
+            if status =='rename_ok':
+                ACDATA.pop(box_cwd)
+                ACDATA[box_dest]={}
+                ACDATA[box_dest]['id']=rs.folder[0].folder_id[0]
+                ACDATA[box_dest]['parent']=parent
+
+                logging.info("Renamed Dir %s to %s",box_cwd,box_dest)
+            else:
+                logging.warning(status)
+        else:
+            # move
+           
+            logging.info("Moving %s %s to %s", what, cwd,dest)
+
+           
+            rs=BOX.move(
+                target=target,
+                target_id=ACDATA[box_cwd],
+                destination_id=ACDATA[parent],
+                api_key=API_KEY,
+                auth_token=AUTH_TOKEN)
+            status = rs.status[0].elementText
+            if status =='move_ok':
+                ACDATA.pop(box_cwd)
+                ACDATA[box_dest]={}
+                ACDATA[box_dest]['id']=rs.folder[0].folder_id[0]
+                ACDATA[box_dest]['parent']=parent
+
+                logging.info("Moved Dir %s to %s",box_cwd,box_dest)
+            else:
+                logging.warning(status)
+        if target=='folder':
+            actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
+            logging.info(actree.status[0].elementText)
+            ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
+        
+    def on_deleted(self, event):
+        """Called when a file or directory is deleted.
+        :param event: Event representing file/directory deletion.
+        :type event: :class:`DirDeletedEvent` or :class:`FileDeletedEvent` """
+        
+    def on_modified(self, event):
+        """Called when a file or directory is modified.
+        :param event: Event representing file/directory modification.
+        :type event: :class:`DirModifiedEvent` or :class:`FileModifiedEvent` """
+
+        
     def on_created(self, event):
         scr=event.src_path.decode('utf-8')
         super(SyncEventHandler, self).on_created(event)
@@ -61,8 +135,8 @@ class SyncEventHandler(FileSystemEventHandler):
             if status =='upload_ok':
                 logging.info("uploaded %s to %s", event.src_path, box_cwd)
             else:
-                
                 logging.warning(status)
+        
        
 def _updata(xml,id,data,prefix):  
     for item in xml:
@@ -74,9 +148,18 @@ def _updata(xml,id,data,prefix):
             parent=''.join([prefix,item['name']])+'/'
             try:
                 _updata(item.folders[0].folder,item['id'],data,parent)
+                _updata(item.files[0].file,item['id'],data,parent)
             except:
                 pass
+        if item.elementName=='file':
+            data[prefix+item['file_name']]={}
+            data[prefix+item['file_name']]['id']=item['id']
+            data[prefix+item['file_name']]['parent']=id
+            data[prefix+item['file_name']]['updated']=item['updated']
+            data[prefix+item['file_name']]['share']=item['shared']
+            data[prefix+item['file_name']]['sha1']=item['sha1']
     return data
+
 
 if __name__ == "__main__":
     
@@ -95,24 +178,33 @@ if __name__ == "__main__":
     SYNC_FOLDER= CONFIG.get('UserSetting','sync_path')
     SYNC_FOLDER = os.path.expanduser(SYNC_FOLDER)
     BOX_FOLDER = CONFIG.get('UserSetting','box_path')
+    API_KEY = CONFIG.get('UserSetting','api_key')
+    AUTH_TOKEN=CONFIG.get('UserSetting','auth_token')
     SHARE =  CONFIG.get('UserSetting','share')
 
 
-    #---------FULL SYNC ------------------
+   
     BOX= boxdotnet.BoxDotNet()
-
-    try:
-        data_file = open('data.p','rb')
-        ACDATA=pickle.load(data_file)
-        logging.info('load data')
+    
+    # try:
+    #     data_file = open('data.p','rb')
+    #     ACDATA=pickle.load(data_file)
+    #     logging.info('load data')
         
-    except:
-        actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
-        logging.info(actree.status[0].elementText)
-        ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
-        print ACDATA
-        with open('data.p','wb') as data_file:
-            pickle.dump(ACDATA,data_file)
+    # except:
+        
+    #     actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
+    #     logging.info(actree.status[0].elementText)
+    #     ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
+    #     print ACDATA
+    #     with open('data.p','wb') as data_file:
+    #         pickle.dump(ACDATA,data_file)
+    actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
+    logging.info(actree.status[0].elementText)
+    ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
+    print ACDATA
+    with open('data.p','wb') as data_file:
+        pickle.dump(ACDATA,data_file)
 
     
     event_handler = SyncEventHandler()
@@ -122,12 +214,15 @@ if __name__ == "__main__":
     observer.start()
     try:
         while True:
+             #---------FULL SYNC ------------------ every five min
+            
             time.sleep(1)
     except KeyboardInterrupt:
         print 'Saving'
         with open('data.p','wb') as data_file:
             pickle.dump(ACDATA,data_file)
+            print 'Saved'
         data_file.close()
-        print 'bye!'
+        print 'Bye!'
         observer.stop()
     observer.join()
