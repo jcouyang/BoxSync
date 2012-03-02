@@ -12,8 +12,8 @@ So I wrote a simple sync client for who like to sync your Box.net's
 50G storage  just Like DropBox Client
 
 
-*==But it's a alpha version, so you better don't sync some importent
-folder for now==*
+=But it's a alpha version(I am testing right now), so you better don't sync any importent
+folder for now=
 
 ** Features
 Now it only has the following simple features:(only *oneway(client=>Box)* sync implemented)
@@ -29,7 +29,6 @@ Now it only has the following simple features:(only *oneway(client=>Box)* sync i
 -upload processing bar
 -maybe in GUI version
 
-Sorry for my poor english, but I think you still got what I mean ;)
 Test the Code (/or help me do the spellcheck:p in README/) for me or DONATE to keep it
 Alive, Really Appreciate!
 
