@@ -38,26 +38,23 @@ class SyncEventHandler(FileSystemEventHandler):
         dest= event.dest_path.replace(SYNC_FOLDER,'')
         box_dest=BOX_FOLDER+dest
         parent,base = os.path.split(box_dest)
-        
+        if ACDATA.has_key(box_cwd):
+            on_created(self,event)
         what = 'directory' if event.is_directory else 'file'
         target='folder' if event.is_directory else 'file'
-        if os.path.split(event.src_path)[0]==os.path.split(event.dest_path):
+        if os.path.split(event.src_path)[0]==os.path.split(event.dest_path)[0]:
             # rename
             
             logging.info("Renaming %s %s to %s", what, cwd,dest)
-            re = BOX.rename(
+            rs = BOX.rename(
                 target=target,
-                target_id=ACDATA[box_cwd],
+                target_id=ACDATA[box_cwd]['id'],
                 new_name=base,
                 api_key=API_KEY,
                 auth_token=AUTH_TOKEN)
             status = rs.status[0].elementText
-            if status =='rename_ok':
-                ACDATA.pop(box_cwd)
-                ACDATA[box_dest]={}
-                ACDATA[box_dest]['id']=rs.folder[0].folder_id[0]
-                ACDATA[box_dest]['parent']=parent
-
+            if status =='s_rename_node':
+                ACDATA[box_dest]=ACDATA.pop(box_cwd)
                 logging.info("Renamed Dir %s to %s",box_cwd,box_dest)
             else:
                 logging.warning(status)
@@ -69,16 +66,13 @@ class SyncEventHandler(FileSystemEventHandler):
            
             rs=BOX.move(
                 target=target,
-                target_id=ACDATA[box_cwd],
+                target_id=ACDATA[box_cwd]['id'],
                 destination_id=ACDATA[parent],
                 api_key=API_KEY,
                 auth_token=AUTH_TOKEN)
             status = rs.status[0].elementText
-            if status =='move_ok':
-                ACDATA.pop(box_cwd)
-                ACDATA[box_dest]={}
-                ACDATA[box_dest]['id']=rs.folder[0].folder_id[0]
-                ACDATA[box_dest]['parent']=parent
+            if status =='s_move_node':
+                ACDATA[box_dest]=ACDATA.pop(box_cwd)
 
                 logging.info("Moved Dir %s to %s",box_cwd,box_dest)
             else:
