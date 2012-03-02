@@ -213,7 +213,7 @@ def _updata(xml,id,data,prefix):
 
 if __name__ == "__main__":
     
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     CONFIG = ConfigParser.RawConfigParser(allow_no_value=True)
     c=CONFIG.read('config.cfg')
     if len(c)==0:
