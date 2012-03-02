@@ -68,14 +68,15 @@ class SyncEventHandler(FileSystemEventHandler):
         super(SyncEventHandler, self).on_modified(event)
         cwd = event.src_path.replace(SYNC_FOLDER,'')
         what = 'directory' if event.is_directory else 'file'
-        logging.info("Modifying %s %s", what, cwd)
+        
         
         if not event.is_directory:
-            self.on_created(event)
+            logging.debug("Modifying %s %s", what, cwd)
+            self.on_upload(event)
         
             
         
-    def on_created(self, event):
+    def on_upload(self, event):
         global ACDATA
         
         scr=event.src_path.decode('utf-8')
@@ -83,9 +84,10 @@ class SyncEventHandler(FileSystemEventHandler):
         cwd = event.src_path.replace(SYNC_FOLDER,'')
         box_cwd=BOX_FOLDER+cwd
         what = 'directory' if event.is_directory else 'file'
-        logging.info("Creating %s: %s", what, cwd)
+        
         try:
             if event.is_directory:
+                logging.info("Uploading %s: %s", what, cwd)
                 rs=BOX.create_folder(
                     name=os.path.basename(event.src_path),
                     parent_id=ACDATA[os.path.split(box_cwd)[0]]['id'],
@@ -102,6 +104,7 @@ class SyncEventHandler(FileSystemEventHandler):
                 else:
                     logging.warning(status)
             elif  os.path.basename(cwd)[0]!='.':
+                logging.info("Uploading %s: %s", what, cwd)
                 # print type(event.src_path),event.src_path
                 rs=BOX.upload(
                     filename=event.src_path,
@@ -127,7 +130,7 @@ class SyncEventHandler(FileSystemEventHandler):
             :class:`DirMovedEvent` or :class:`FileMovedEvent`
         """
         try:
-            logging.info('---------MOVING or RENAMING FILE-%s----------',event.src_path)
+            
             global ACDATA
 
             super(SyncEventHandler, self).on_moved(event)
@@ -162,8 +165,6 @@ class SyncEventHandler(FileSystemEventHandler):
                 # move
 
                 logging.info("Moving %s %s to %s", what, cwd,dest)
-
-
                 rs=BOX.move(
                     target=target,
                     target_id=ACDATA[box_cwd]['id'],
@@ -181,8 +182,9 @@ class SyncEventHandler(FileSystemEventHandler):
                 actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
                 logging.info(actree.status[0].elementText)
                 ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
-        except KeyError:
-            print KeyError
+        except KeyError,e:
+            print e
+            
 def _updata(xml,id,data,prefix):  
     for item in xml:
         parent=prefix
@@ -229,18 +231,21 @@ if __name__ == "__main__":
     AUTH_TOKEN=CONFIG.get('UserSetting','auth_token')
     SHARE =  CONFIG.get('UserSetting','share')
     BOX= boxdotnet.BoxDotNet()
-    if AUTH_TOKEN:
+    logging.debug(AUTH_TOKEN)
+    if AUTH_TOKEN is None:
         ticket = BOX.login(API_KEY)
         logging.debug('ticket2='+ticket)
         print 'Login to Auth BoxSyn App from the Page Just Popup.'
         while True:
             done_auth = raw_input('Did you finish?[Y/n]')
             if done_auth=='y' or done_auth=='':
-                logging.debug('ticke3t='+ticket)
+                print 'Login sucessfully! Now you can Sync your files in folder=>'+SYNC_FOLDER
                 rsp = BOX.get_auth_token(api_key=API_KEY, ticket=ticket)
                 if rsp.status[0].elementText=='get_auth_token_ok':
                     AUTH_TOKEN = rsp.auth_token[0].elementText
                     CONFIG.set('UserSetting','auth_token',AUTH_TOKEN)
+                    with open('config.cfg', 'wb') as configfile:
+                        CONFIG.write(configfile)
                     break
                 else:
                     logging.warning(rsp.status[0].elementText)

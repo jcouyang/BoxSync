@@ -2,13 +2,15 @@
 * BoxSync
 /A client for Box.net/
 
-Since Box.net offer a lifetime upgrade to 50G storage plan for iPhone and Android user.
-I decide to turn to Box.net from Dropbox. But the lack of a sync client really ...you know...SUCK!
+Since Box.net offer a lifetime span 50G storage plan for iPhone and Android user.
+I decide to turn to Box.net from Dropbox. But the lack of a sync
+client really ...the /official one/ you know...not *free* and *SUCK*!
 
-So I wrote a simple sync client for who like dropbox client and the Box.net's 50G storage
+So I wrote a simple sync client for who like to sync your Box.net's
+50G storage  Just Like DropBox Client
 
 ** Features
-Now it only has the following simple features:(now only *oneway(client=>Box)* sync implemented)
+Now it only has the following simple features:(only *oneway(client=>Box)* sync implemented)
 -upload new folders and files 
 -delete files &folders 
 -rename files & folders
@@ -19,8 +21,9 @@ Now it only has the following simple features:(now only *oneway(client=>Box)* sy
 -share folders and files
 -sync multiple Folders
 -upload processing bar
--maybe GUI version
-
+-maybe in GUI version
 
 Sorry for my poor english, but I think you still got what I mean ;)
-Test it for me or DONATE to keep it Alive, THANKU!
+Test the Code (/or help me do the spellcheck:p in README/) for me or DONATE to keep it
+Alive, Really Appreciate!
+
