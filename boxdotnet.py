@@ -26,7 +26,7 @@ import mimetools
 import mimetypes
 import os
 import sys
-
+import logging
 from xml.dom.minidom import parseString
 import xml.dom
 
@@ -196,8 +196,10 @@ class BoxDotNet(object):
                 # print url
                 # print "--postData----------------------------------------"
                 # print postData
+		logging.debug(url+postData)
                 f = urllib.urlopen(url + postData)
                 data = f.read()
+
                 # print "--response----------------------------------------"
                 
 #                print data

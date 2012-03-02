@@ -23,7 +23,12 @@ class BoxError(Exception):
 
 class SyncEventHandler(FileSystemEventHandler):
 
-    def on_moved(self, event):
+    
+    def on_deleted(self, event):
+        """Called when a file or directory is deleted.
+        :param event: Event representing file/directory deletion.
+        :type event: :class:`DirDeletedEvent` or :class:`FileDeletedEvent` """
+        logging.debug('---------DELETING or RENAMING FILE-%s----------',event.src_path)
         global ACDATA
         """Called when a file or a directory is moved or renamed.
 
@@ -32,106 +37,151 @@ class SyncEventHandler(FileSystemEventHandler):
         :type event:
             :class:`DirMovedEvent` or :class:`FileMovedEvent`
         """
-        super(SyncEventHandler, self).on_moved(event)
+        super(SyncEventHandler, self).on_deleted(event)
         cwd = event.src_path.replace(SYNC_FOLDER,'')
         box_cwd=BOX_FOLDER+cwd
-        dest= event.dest_path.replace(SYNC_FOLDER,'')
-        box_dest=BOX_FOLDER+dest
-        parent,base = os.path.split(box_dest)
-        if ACDATA.has_key(box_cwd):
-            on_created(self,event)
+        if os.path.basename(box_cwd)[0]=='.':
+            return
         what = 'directory' if event.is_directory else 'file'
         target='folder' if event.is_directory else 'file'
-        if os.path.split(event.src_path)[0]==os.path.split(event.dest_path)[0]:
-            # rename
+        logging.info("Deleting %s %s", what, cwd)
+        try:
+            rs = BOX.delete(
+            target=target,
+            target_id=ACDATA[box_cwd]['id'],
+            api_key=API_KEY,
+            auth_token=AUTH_TOKEN)
+            status = rs.status[0].elementText
+            if status =='s_delete_node':
+                ACDATA.pop(box_cwd)
+                logging.info("Deleted %s",box_cwd)
+            else:
+                logging.warning(status)
+        except KeyError:
+            print KeyError
             
-            logging.info("Renaming %s %s to %s", what, cwd,dest)
-            rs = BOX.rename(
-                target=target,
-                target_id=ACDATA[box_cwd]['id'],
-                new_name=base,
-                api_key=API_KEY,
-                auth_token=AUTH_TOKEN)
-            status = rs.status[0].elementText
-            if status =='s_rename_node':
-                ACDATA[box_dest]=ACDATA.pop(box_cwd)
-                logging.info("Renamed Dir %s to %s",box_cwd,box_dest)
-            else:
-                logging.warning(status)
-        else:
-            # move
-           
-            logging.info("Moving %s %s to %s", what, cwd,dest)
-
-           
-            rs=BOX.move(
-                target=target,
-                target_id=ACDATA[box_cwd]['id'],
-                destination_id=ACDATA[parent],
-                api_key=API_KEY,
-                auth_token=AUTH_TOKEN)
-            status = rs.status[0].elementText
-            if status =='s_move_node':
-                ACDATA[box_dest]=ACDATA.pop(box_cwd)
-
-                logging.info("Moved Dir %s to %s",box_cwd,box_dest)
-            else:
-                logging.warning(status)
-        if target=='folder':
-            actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
-            logging.info(actree.status[0].elementText)
-            ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
-        
-    def on_deleted(self, event):
-        """Called when a file or directory is deleted.
-        :param event: Event representing file/directory deletion.
-        :type event: :class:`DirDeletedEvent` or :class:`FileDeletedEvent` """
-        
     def on_modified(self, event):
         """Called when a file or directory is modified.
         :param event: Event representing file/directory modification.
         :type event: :class:`DirModifiedEvent` or :class:`FileModifiedEvent` """
-
+        super(SyncEventHandler, self).on_modified(event)
+        cwd = event.src_path.replace(SYNC_FOLDER,'')
+        what = 'directory' if event.is_directory else 'file'
+        logging.info("Modifying %s %s", what, cwd)
+        
+        if not event.is_directory:
+            self.on_created(event)
+        
+            
         
     def on_created(self, event):
+        global ACDATA
+        
         scr=event.src_path.decode('utf-8')
         super(SyncEventHandler, self).on_created(event)
         cwd = event.src_path.replace(SYNC_FOLDER,'')
         box_cwd=BOX_FOLDER+cwd
         what = 'directory' if event.is_directory else 'file'
         logging.info("Creating %s: %s", what, cwd)
+        try:
+            if event.is_directory:
+                rs=BOX.create_folder(
+                    name=os.path.basename(event.src_path),
+                    parent_id=ACDATA[os.path.split(box_cwd)[0]]['id'],
+                    share=SHARE,
+                    api_key=API_KEY,
+                    auth_token=AUTH_TOKEN)
+                status = rs.status[0].elementText
+                if status =='create_ok':
+                    ACDATA[box_cwd]={}
+                    ACDATA[box_cwd]['id']=rs.folder[0].folder_id[0]
+                    ACDATA[box_cwd]['parent']=rs.folder[0].parent_folder_id[0]
+
+                    logging.info("created Dir %s to %s", event.src_path,box_cwd)
+                else:
+                    logging.warning(status)
+            elif  os.path.basename(cwd)[0]!='.':
+                # print type(event.src_path),event.src_path
+                rs=BOX.upload(
+                    filename=event.src_path,
+                    folder_id=ACDATA[os.path.split(box_cwd)[0]]['id'],
+                    share=SHARE,
+                    api_key=API_KEY,
+                    auth_token=AUTH_TOKEN)
+                status = rs.status[0].elementText
+                if status =='upload_ok':
+                    logging.info("uploaded %s to %s", event.src_path, box_cwd)
+                else:
+                    logging.warning(status)
+        except KeyError:
+            print KeyError.args
         
-        if event.is_directory:
-            rs=BOX.create_folder(
-                name=os.path.basename(event.src_path),
-                parent_id=ACDATA[os.path.split(box_cwd)[0]]['id'],
-                share=SHARE,
-                api_key=API_KEY,
-                auth_token=AUTH_TOKEN)
-            status = rs.status[0].elementText
-            if status =='create_ok':
-                ACDATA[box_cwd]={}
-                ACDATA[box_cwd]['id']=rs.folder[0].folder_id[0]
-                ACDATA[box_cwd]['parent']=rs.folder[0].parent_folder_id[0]
-                
-                logging.info("created Dir %s to %s", event.src_path,box_cwd)
-            else:
-                logging.warning(status)
-        elif  os.path.basename(cwd)[0]!='.':
-            # print type(event.src_path),event.src_path
-            rs=BOX.upload(
-                filename=event.src_path,
-                folder_id=ACDATA[os.path.split(box_cwd)[0]]['id'],
-                share=SHARE,
-                api_key=API_KEY,
-                auth_token=AUTH_TOKEN)
-            status = rs.status[0].elementText
-            if status =='upload_ok':
-                logging.info("uploaded %s to %s", event.src_path, box_cwd)
-            else:
-                logging.warning(status)
         
-       
+    def on_moved(self, event):
+        """Called when a file or a directory is moved or renamed.
+
+        :param event:
+            Event representing file/directory movement.
+        :type event:
+            :class:`DirMovedEvent` or :class:`FileMovedEvent`
+        """
+        try:
+            logging.info('---------MOVING or RENAMING FILE-%s----------',event.src_path)
+            global ACDATA
+
+            super(SyncEventHandler, self).on_moved(event)
+            cwd = event.src_path.replace(SYNC_FOLDER,'')
+            box_cwd=BOX_FOLDER+cwd
+            dest= event.dest_path.replace(SYNC_FOLDER,'')
+            box_dest=BOX_FOLDER+dest
+            parent,base = os.path.split(box_dest)
+
+            if os.path.basename(box_cwd)[0]=='.' or not ACDATA.has_key(os.path.split(box_dest)[0]):
+                return
+            what = 'directory' if event.is_directory else 'file'
+            target='folder' if event.is_directory else 'file'
+
+            if os.path.split(event.src_path)[0]==os.path.split(event.dest_path)[0]:
+                # rename
+
+                logging.info("Renaming %s %s to %s", what, cwd,dest)
+                rs = BOX.rename(
+                    target=target,
+                    target_id=ACDATA[box_cwd]['id'],
+                    new_name=base,
+                    api_key=API_KEY,
+                    auth_token=AUTH_TOKEN)
+                status = rs.status[0].elementText
+                if status =='s_rename_node':
+                    ACDATA[box_dest]=ACDATA.pop(box_cwd)
+                    logging.info("Renamed Dir %s to %s",box_cwd,box_dest)
+                else:
+                    logging.warning(status)
+            else:
+                # move
+
+                logging.info("Moving %s %s to %s", what, cwd,dest)
+
+
+                rs=BOX.move(
+                    target=target,
+                    target_id=ACDATA[box_cwd]['id'],
+                    destination_id=ACDATA[parent]['id'],
+                    api_key=API_KEY,
+                    auth_token=AUTH_TOKEN)
+                status = rs.status[0].elementText
+                if status =='s_move_node':
+                    ACDATA[box_dest]=ACDATA.pop(box_cwd)
+
+                    logging.info("Moved Dir %s to %s",box_cwd,box_dest)
+                else:
+                    logging.warning(status)
+            if target=='folder':
+                actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
+                logging.info(actree.status[0].elementText)
+                ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
+        except KeyError:
+            print KeyError
 def _updata(xml,id,data,prefix):  
     for item in xml:
         parent=prefix
@@ -142,6 +192,9 @@ def _updata(xml,id,data,prefix):
             parent=''.join([prefix,item['name']])+'/'
             try:
                 _updata(item.folders[0].folder,item['id'],data,parent)
+            except:
+                pass
+            try:
                 _updata(item.files[0].file,item['id'],data,parent)
             except:
                 pass
@@ -196,7 +249,6 @@ if __name__ == "__main__":
     actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
     logging.info(actree.status[0].elementText)
     ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
-    print ACDATA
     with open('data.p','wb') as data_file:
         pickle.dump(ACDATA,data_file)
 
@@ -219,4 +271,7 @@ if __name__ == "__main__":
         data_file.close()
         print 'Bye!'
         observer.stop()
+
+    except KeyError:
+        logging.warning(KeyError)
     observer.join()
