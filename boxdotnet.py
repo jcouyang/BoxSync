@@ -180,8 +180,9 @@ class BoxDotNet(object):
         webbrowser.open(url)
         # get token
         # rsp = self.get_auth_token(api_key=api_key, ticket=ticket)
-        # 
-        #        return rsp
+        #
+	logging.debug('ticket='+ticket)
+        return ticket
 
     def __getattr__(self, method, **arg):
         """

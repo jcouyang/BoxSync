@@ -8,8 +8,9 @@ import os
 import ConfigParser
 import pickle
 import atexit
+import sys
 from string import maketrans
-API_KEY=''
+API_KEY='ro7mkd0yge1d2ah6gupyet80cal7cyop'#BoxSyncClient
 AUTH_TOKEN=''
 BOX_FOLDER='/TEST'
 SYNC_FOLDER=''
@@ -225,13 +226,33 @@ if __name__ == "__main__":
     SYNC_FOLDER= CONFIG.get('UserSetting','sync_path')
     SYNC_FOLDER = os.path.expanduser(SYNC_FOLDER)
     BOX_FOLDER = CONFIG.get('UserSetting','box_path')
-    API_KEY = CONFIG.get('UserSetting','api_key')
     AUTH_TOKEN=CONFIG.get('UserSetting','auth_token')
     SHARE =  CONFIG.get('UserSetting','share')
-
-
-   
     BOX= boxdotnet.BoxDotNet()
+    if AUTH_TOKEN:
+        ticket = BOX.login(API_KEY)
+        logging.debug('ticket2='+ticket)
+        print 'Login to Auth BoxSyn App from the Page Just Popup.'
+        while True:
+            done_auth = raw_input('Did you finish?[Y/n]')
+            if done_auth=='y' or done_auth=='':
+                logging.debug('ticke3t='+ticket)
+                rsp = BOX.get_auth_token(api_key=API_KEY, ticket=ticket)
+                if rsp.status[0].elementText=='get_auth_token_ok':
+                    AUTH_TOKEN = rsp.auth_token[0].elementText
+                    CONFIG.set('UserSetting','auth_token',AUTH_TOKEN)
+                    break
+                else:
+                    logging.warning(rsp.status[0].elementText)
+                    continue
+
+            elif done_auth=='n':
+                print 'Bye then~'
+                sys.exit(0)
+            else:
+                print r'input only "y" or "n" or just press Enter plz.'
+                
+    
     
     # try:
     #     data_file = open('data.p','rb')
