@@ -35,7 +35,7 @@ import math
 def progress(download_t, download_d, upload_t, upload_d):
         # print "Total to download", download_t
         # print "Total downloaded", download_d
-	if upload_t !=0:
+	if upload_t !=0 and upload_t!=upload_d:
 	    width=50
 	    percent = upload_d/upload_t*100
 	    marks = math.floor(width * (percent / 100.0))
@@ -44,10 +44,7 @@ def progress(download_t, download_d, upload_t, upload_d):
 	    loader = '[' + ('=' * (int(marks)-1)) +'>'+ (' ' * int(spaces)) + ']'
  
 	    sys.stdout.write("%s %d%%\r" % (loader, percent))
-	    if upload_t==upload_d:
-		sys.stdout.write("\n")
 	    sys.stdout.flush()
-
         # Returning None implies that all bytes were written
 	
 def get_content_type(filename):
@@ -301,6 +298,11 @@ class BoxDotNet(object):
 	c.setopt(pycurl.WRITEFUNCTION, storage.write)
 	c.setopt(c.NOPROGRESS,0)
 	c.perform()
+	
+	loader = '[' + ('=' * (49)) +'>'+ ']'
+	sys.stdout.write("%s %d%%\r" % (loader, 100))
+	sys.stdout.flush()
+	sys.stdout.write("\n")
 	c.close()
 	rspXML=storage.getvalue()
 	# print 'xml',self.rspXML
