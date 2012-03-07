@@ -29,7 +29,27 @@ import sys
 import logging
 from xml.dom.minidom import parseString
 import xml.dom
+import pycurl
+from StringIO import StringIO
+import math
+def progress(download_t, download_d, upload_t, upload_d):
+        # print "Total to download", download_t
+        # print "Total downloaded", download_d
+	if upload_t !=0:
+	    width=50
+	    percent = upload_d/upload_t*100
+	    marks = math.floor(width * (percent / 100.0))
+	    spaces = math.floor(width - marks)
+ 
+	    loader = '[' + ('=' * (int(marks)-1)) +'>'+ (' ' * int(spaces)) + ']'
+ 
+	    sys.stdout.write("%s %d%%\r" % (loader, percent))
+	    if upload_t==upload_d:
+		sys.stdout.write("\n")
+	    sys.stdout.flush()
 
+        # Returning None implies that all bytes were written
+	
 def get_content_type(filename):
 	return mimetypes.guess_type(filename)[0] or 'application/octet-stream'
 
@@ -219,6 +239,8 @@ class BoxDotNet(object):
 
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
+
+    
     def upload(self, filename, **arg):
         """
         Upload a file to box.net.
@@ -234,35 +256,53 @@ class BoxDotNet(object):
 
         url = 'http://upload.box.net/api/1.0/upload/%s/%s' % (arg['auth_token'], arg['folder_id'])
 
-        # construct POST data
-        boundary = mimetools.choose_boundary()
-        body = ""
+        # # construct POST data
+        # boundary = mimetools.choose_boundary()
+        # body = ""
 
-        # filename
-        body += "--%s\r\n" % (boundary)
-        body += 'Content-Disposition: form-data; name="share"\r\n\r\n'
-        body += "%s\r\n" % (arg['share'])
+        # # filename
+        # body += "--%s\r\n" % (boundary)
+        # body += 'Content-Disposition: form-data; name="share"\r\n\r\n'
+        # body += "%s\r\n" % (arg['share'])
 
-        body += "--%s\r\n" % (boundary)
-        body += "Content-Disposition: form-data; name=\"file\";"
-        body += " filename=\"%s\"\r\n" % filename
-        body += "Content-Type: %s\r\n\r\n" % get_content_type(filename)
+        # body += "--%s\r\n" % (boundary)
+        # body += "Content-Disposition: form-data; name=\"file\";"
+        # body += " filename=\"%s\"\r\n" % filename
+        # body += "Content-Type: %s\r\n\r\n" % get_content_type(filename)
 
         #print body
 
-        fp = file(filename, "rb")
-        data = fp.read()
-        fp.close()
+        # fp = file(filename, "rb")
+        # data = fp.read()
+        
 
-        postData = body + data + \
-            ("\r\n--%s--" % (boundary))
+        # postData = body + data + \
+        #     ("\r\n--%s--" % (boundary))
 
-        request = urllib2.Request(url.encode('utf-8'))
-        request.add_data(postData)
-        request.add_header("Content-Type", \
-            "multipart/form-data; boundary=%s" % boundary)
-        response = urllib2.urlopen(request)
-        rspXML = response.read()
+        # request = urllib2.Request(url.encode('utf-8'))
+        # request.add_data(postData)
+        # request.add_header("Content-Type", \
+        #     "multipart/form-data; boundary=%s" % boundary)
+        # response = urllib2.urlopen(request)
+        # rspXML = response.read()
 
+	c = pycurl.Curl()
+	
+	c.setopt(c.URL,url.encode('utf-8'))
+	# fp.close(
+	c.setopt(c.HTTPPOST,[ ("file", filename), 
+                      ("share", arg['share']), 
+                      (filename, 
+                                 (c.FORM_FILE, filename, 
+                                  c.FORM_CONTENTTYPE, get_content_type(filename)))
+                    ])
+	c.setopt(c.PROGRESSFUNCTION, progress)
+	storage = StringIO()
+	c.setopt(pycurl.WRITEFUNCTION, storage.write)
+	c.setopt(c.NOPROGRESS,0)
+	c.perform()
+	c.close()
+	rspXML=storage.getvalue()
+	# print 'xml',self.rspXML
         return XMLNode.parseXML(rspXML)
 
