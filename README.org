@@ -21,12 +21,12 @@ Now it only has the following simple features:(only *oneway(client=>Box)* sync i
 -delete files &folders 
 -rename files & folders
 -move files & folders
+-upload processing bar
 
 ** TODO Tasks								:dsf:
 -two way sync during  a presetting time
 -share folders and files
 -sync multiple Folders
--upload processing bar
 -maybe in GUI version
 
 Test the Code (/or help me do the spellcheck:p in README/) for me or DONATE to keep it
