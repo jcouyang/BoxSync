@@ -24,6 +24,7 @@ class BoxError(Exception):
 
 class SyncEventHandler(FileSystemEventHandler):
 
+    moddict={}
     
     def on_deleted(self, event):
         """Called when a file or directory is deleted.
@@ -72,11 +73,11 @@ class SyncEventHandler(FileSystemEventHandler):
         
         if not event.is_directory:
             logging.debug("Modifying %s %s", what, cwd)
-            self.on_upload(event)
-        
+            
+            #compare file mod time
             
         
-    def on_upload(self, event):
+    def on_created(self, event):
         global ACDATA
         
         scr=event.src_path.decode('utf-8')
@@ -213,13 +214,13 @@ def _updata(xml,id,data,prefix):
 
 if __name__ == "__main__":
     
-    logging.basicConfig(level=logging.INFO)
     CONFIG = ConfigParser.RawConfigParser(allow_no_value=True)
     c=CONFIG.read('config.cfg')
     if len(c)==0:
         CONFIG.add_section('UserSetting')
         CONFIG.set('UserSetting','sync_path','~/BoxSync')
         CONFIG.set('UserSetting','box_path','/TEST')
+        CONFIG.set('UserSetting','log',logging.INFO)
         CONFIG.set('UserSetting','auth_token')
         CONFIG.set('UserSetting','share','0')
         with open('config.cfg', 'wb') as configfile:
@@ -231,6 +232,7 @@ if __name__ == "__main__":
     AUTH_TOKEN=CONFIG.get('UserSetting','auth_token')
     SHARE =  CONFIG.get('UserSetting','share')
     BOX= boxdotnet.BoxDotNet()
+    logging.basicConfig(level=int(CONFIG.get('UserSetting','log')))
     logging.debug(AUTH_TOKEN)
     if AUTH_TOKEN is None:
         ticket = BOX.login(API_KEY)
@@ -272,10 +274,12 @@ if __name__ == "__main__":
     #     print ACDATA
     #     with open('data.p','wb') as data_file:
     #         pickle.dump(ACDATA,data_file)
-    actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
+    actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['simple'])
     logging.info(actree.status[0].elementText)
-    ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
-    with open('data.p','wb') as data_file:
+    print actree.tree[0].elementName
+    ACDATA = _updata(actree.tree,'0',{},'')
+    logging.debug(ACDATA)
+    with open('.data.p','wb') as data_file:
         pickle.dump(ACDATA,data_file)
 
     
@@ -291,7 +295,7 @@ if __name__ == "__main__":
             time.sleep(1)
     except KeyboardInterrupt:
         print 'Saving'
-        with open('data.p','wb') as data_file:
+        with open('.data.p','wb') as data_file:
             pickle.dump(ACDATA,data_file)
             print 'Saved'
         data_file.close()

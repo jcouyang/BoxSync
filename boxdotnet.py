@@ -32,6 +32,7 @@ import xml.dom
 import pycurl
 from StringIO import StringIO
 import math
+import zipfile
 def progress(download_t, download_d, upload_t, upload_d):
         # print "Total to download", download_t
         # print "Total downloaded", download_d
@@ -224,8 +225,15 @@ class BoxDotNet(object):
                 f.close()
                 
                 xml = XMLNode.parseXML(data, True)
-                #ecode_data= base64.standard_b64decode(xml.tree[0].elementText)
-               # xml.tree[0]=ecode_data
+		if method=='get_account_tree':
+		    logging.debug(xml.tree[0].elementText)
+		    decode_data=base64.b64decode(xml.tree[0].elementText)
+		    fp=StringIO(decode_data)
+		    zfp=zipfile.ZipFile(fp,'r')
+		    ftree=zfp.read(zfp.namelist()[0])
+		    logging.debug(ftree)
+		    
+		    xml.tree[0]=XMLNode.parseXML(ftree)
                 #print ecode_data
                 _self.check_errors(_method, xml) 
                 return xml
