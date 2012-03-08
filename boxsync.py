@@ -180,7 +180,7 @@ class SyncEventHandler(FileSystemEventHandler):
                 else:
                     logging.warning(status)
             if target=='folder':
-                actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
+                actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['simple'])
                 logging.info(actree.status[0].elementText)
                 ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
         except KeyError,e:
