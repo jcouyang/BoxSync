@@ -33,19 +33,26 @@ import pycurl
 from StringIO import StringIO
 import math
 import zipfile
+
+def draw_progress(percent):
+    width=50
+    marks = math.floor(width * (percent / 100.0))
+    spaces = math.floor(width - marks)
+
+    loader = '[' + ('=' * (int(marks)-1)) +'>'+ (' ' * int(spaces)) + ']'
+
+    sys.stdout.write("%s %d%%\r" % (loader, percent))
+    sys.stdout.flush()
 def progress(download_t, download_d, upload_t, upload_d):
         # print "Total to download", download_t
         # print "Total downloaded", download_d
-	if upload_t !=0 and upload_t!=upload_d:
-	    width=50
-	    percent = upload_d/upload_t*100
-	    marks = math.floor(width * (percent / 100.0))
-	    spaces = math.floor(width - marks)
- 
-	    loader = '[' + ('=' * (int(marks)-1)) +'>'+ (' ' * int(spaces)) + ']'
- 
-	    sys.stdout.write("%s %d%%\r" % (loader, percent))
-	    sys.stdout.flush()
+    
+    if download_t != 0 and download_t!=download_d:
+        percent = download_d/download_t*100
+        draw_progress(percent)
+    if upload_t !=0 and upload_t!=upload_d:
+        percent = upload_d/upload_t*100
+        draw_progress(percent)
         # Returning None implies that all bytes were written
 	
 def get_content_type(filename):

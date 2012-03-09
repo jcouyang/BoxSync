@@ -10,6 +10,8 @@ import pickle
 import atexit
 import sys
 from string import maketrans
+import pycurl
+import hashlib
 API_KEY='ro7mkd0yge1d2ah6gupyet80cal7cyop'#BoxSyncClient
 AUTH_TOKEN=''
 BOX_FOLDER='/TEST'
@@ -234,35 +236,32 @@ def full_sync():
             path = os.path.join(top,nm)
             box_path  = BOX_FOLDER+path.replace(SYNC_FOLDER,'')
             if ACDATA.has_key(box_path):#compare mod time
-                
-                print box_path,os.path.getmtime(path),ACDATA[box_path]['updated']
+                subs= os.path.getmtime(path)-int(ACDATA[box_path]['updated'])
+                if subs<-5:
+                    print 'download',path
+                elif subs>5:
+                    print 'upload',path
+                else:
+                    hashlib.sha1()
             else:
                 print 'upload',box_path
     for bxf in ACDATA.keys():
         path = SYNC_FOLDER+bxf
         parent,base = os.path.split(path)
-        if os.path.exists(path):
-            if os.path.isfile(path)
-                
-        else:
+        if not (os.path.exists(path) or os.path.isdir(path)):
             os.makedirs(parent)
             ftw = open(path,'wb')
-            data = BOX.download(api_key=API_KEY,auth_token=AUTH_TOKEN,file_id=ACDATA[box_path])
-            ftw.write(data)
-            # c = pycurl.Curl()
-            # c.setopt(c.URL,url.encode('utf-8'))
-            # # fp.close(
-            # c.setopt(c.HTTPPOST,[ ("file", filename), 
-            #               ("share", arg['share']), 
-            #               (filename, 
-            #                          (c.FORM_FILE, filename, 
-            #                           c.FORM_CONTENTTYPE, get_content_type(filename)))
-            #             ])
-            # c.setopt(c.PROGRESSFUNCTION, progress)
-            # storage = StringIO()
-            # c.setopt(pycurl.WRITEFUNCTION, storage.write)
-            # c.setopt(c.NOPROGRESS,0)
-            # c.perform()
+            c = pycurl.Curl()
+            url='https://www.box.net/api/1.0/download/'+AUTH_TOKEN+'/'+ACDATA[bxf]['id']
+            logging.debug(url)
+            c.setopt(c.URL,url.encode('utf-8'))
+            c.setopt(c.PROGRESSFUNCTION, boxdotnet.progress)
+            storage = StringIO()
+            c.setopt(pycurl.WRITEFUNCTION, storage.write)
+            c.setopt(c.NOPROGRESS,1)
+            c.perform()
+            c.close()
+            ftw.write(storage.getValue())
 	
            
 
