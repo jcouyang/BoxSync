@@ -226,12 +226,12 @@ class BoxDotNet(object):
                 
                 xml = XMLNode.parseXML(data, True)
 		if method=='get_account_tree':
-		    logging.debug(xml.tree[0].elementText)
+		    # logging.debug(xml.tree[0].elementText)
 		    decode_data=base64.b64decode(xml.tree[0].elementText)
 		    fp=StringIO(decode_data)
 		    zfp=zipfile.ZipFile(fp,'r')
 		    ftree=zfp.read(zfp.namelist()[0])
-		    logging.debug(ftree)
+		    # logging.debug(ftree)
 		    
 		    xml.tree[0]=XMLNode.parseXML(ftree)
                 #print ecode_data

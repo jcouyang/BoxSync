@@ -18,10 +18,31 @@ SHARE = ''
 CONFIG=None
 BOX=None
 ACDATA=None
+BOX_FOLDER_ID=''
 class BoxError(Exception):
     """Exception class for errors received from Facebook."""
     pass
 
+def create_folder(ACDATA,dir):
+    parent,base=os.path.split(dir)
+    if ACDATA.has_key(parent):
+        rs=BOX.create_folder(
+                        name=os.path.basename(dir),
+                        parent_id=ACDATA[parent]['id'],
+                        share=SHARE,
+                        api_key=API_KEY,
+                        auth_token=AUTH_TOKEN)
+        status = rs.status[0].elementText
+        if status =='create_ok':
+            ACDATA[dir]={}
+            ACDATA[dir]['id']=rs.folder[0].folder_id[0].elementText
+            ACDATA[dir]['parent']=rs.folder[0].parent_folder_id[0].elementText
+
+            logging.info("created Dir %s", dir)
+        else:
+            logging.warning(status)
+    else:
+        create_folder(ACDATA,parent)
 class SyncEventHandler(FileSystemEventHandler):
 
     moddict={}
@@ -40,13 +61,15 @@ class SyncEventHandler(FileSystemEventHandler):
             :class:`DirMovedEvent` or :class:`FileMovedEvent`
         """
         super(SyncEventHandler, self).on_deleted(event)
-        cwd = event.src_path.replace(SYNC_FOLDER,'')
+        cwd = event.src_path.replace(SYNC_FOLDER,'').decode('utf-8')
         box_cwd=BOX_FOLDER+cwd
         if os.path.basename(box_cwd)[0]=='.':
             return
         what = 'directory' if event.is_directory else 'file'
         target='folder' if event.is_directory else 'file'
         logging.info("Deleting %s %s", what, cwd)
+        logging.debug(ACDATA)
+        logging.debug(box_cwd)
         try:
             rs = BOX.delete(
             target=target,
@@ -59,8 +82,8 @@ class SyncEventHandler(FileSystemEventHandler):
                 logging.info("Deleted %s",box_cwd)
             else:
                 logging.warning(status)
-        except KeyError:
-            print KeyError
+        except KeyError,e:
+            print 'KeyError',e
             
     def on_modified(self, event):
         """Called when a file or directory is modified.
@@ -82,44 +105,38 @@ class SyncEventHandler(FileSystemEventHandler):
         
         scr=event.src_path.decode('utf-8')
         super(SyncEventHandler, self).on_created(event)
-        cwd = event.src_path.replace(SYNC_FOLDER,'')
+        cwd = event.src_path.replace(SYNC_FOLDER,'').decode('utf-8')
         box_cwd=BOX_FOLDER+cwd
         what = 'directory' if event.is_directory else 'file'
         
         try:
             if event.is_directory:
                 logging.info("Uploading %s: %s", what, cwd)
-                rs=BOX.create_folder(
-                    name=os.path.basename(event.src_path),
-                    parent_id=ACDATA[os.path.split(box_cwd)[0]]['id'],
-                    share=SHARE,
-                    api_key=API_KEY,
-                    auth_token=AUTH_TOKEN)
-                status = rs.status[0].elementText
-                if status =='create_ok':
-                    ACDATA[box_cwd]={}
-                    ACDATA[box_cwd]['id']=rs.folder[0].folder_id[0]
-                    ACDATA[box_cwd]['parent']=rs.folder[0].parent_folder_id[0]
-
-                    logging.info("created Dir %s to %s", event.src_path,box_cwd)
-                else:
-                    logging.warning(status)
+                create_folder(ACDATA,box_cwd)
             elif  os.path.basename(cwd)[0]!='.':
                 logging.info("Uploading %s: %s", what, cwd)
                 # print type(event.src_path),event.src_path
+                parent,base=os.path.split(box_cwd)
+                if not ACDATA.has_key(parent):
+                    create_folder(ACDATA,parent)
                 rs=BOX.upload(
                     filename=event.src_path,
-                    folder_id=ACDATA[os.path.split(box_cwd)[0]]['id'],
+                    folder_id=ACDATA[parent]['id'],
                     share=SHARE,
                     api_key=API_KEY,
                     auth_token=AUTH_TOKEN)
                 status = rs.status[0].elementText
                 if status =='upload_ok':
-                    logging.info("uploaded %s to %s", event.src_path, box_cwd)
+                    ACDATA[box_cwd]={}
+                    ACDATA[box_cwd]['id']=rs.files[0].file[0]['id']
+                    ACDATA[box_cwd]['parent']=rs.files[0].file[0]['folder_id']
+
+                    logging.info("created Dir %s to %s", scr,box_cwd)
                 else:
                     logging.warning(status)
-        except KeyError:
-            print KeyError.args
+                    logging.info("uploaded %s to %s", cwd, box_cwd)
+        except KeyError,e:
+            print 'KeyError',e
         
         
     def on_moved(self, event):
@@ -135,12 +152,12 @@ class SyncEventHandler(FileSystemEventHandler):
             global ACDATA
 
             super(SyncEventHandler, self).on_moved(event)
-            cwd = event.src_path.replace(SYNC_FOLDER,'')
+            cwd = event.src_path.replace(SYNC_FOLDER,'').decode('utf-8')
             box_cwd=BOX_FOLDER+cwd
-            dest= event.dest_path.replace(SYNC_FOLDER,'')
+            dest= event.dest_path.replace(SYNC_FOLDER,'').decode('utf-8')
             box_dest=BOX_FOLDER+dest
             parent,base = os.path.split(box_dest)
-
+            logging.debug(parent)
             if os.path.basename(box_cwd)[0]=='.' or not ACDATA.has_key(os.path.split(box_dest)[0]):
                 return
             what = 'directory' if event.is_directory else 'file'
@@ -180,11 +197,11 @@ class SyncEventHandler(FileSystemEventHandler):
                 else:
                     logging.warning(status)
             if target=='folder':
-                actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['simple'])
+                actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=BOX_FOLDER_ID,params=['simple'])
                 logging.info(actree.status[0].elementText)
-                ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
+                ACDATA = _updata(actree.tree,'0',{},'/')
         except KeyError,e:
-            print e
+            print 'KeyError',e
             
 def _updata(xml,id,data,prefix):  
     for item in xml:
@@ -211,6 +228,45 @@ def _updata(xml,id,data,prefix):
             data[prefix+item['file_name']]['sha1']=item['sha1']
     return data
 
+def full_sync():
+    for top, dirs, files in os.walk(SYNC_FOLDER):
+        for nm in files:
+            path = os.path.join(top,nm)
+            box_path  = BOX_FOLDER+path.replace(SYNC_FOLDER,'')
+            if ACDATA.has_key(box_path):#compare mod time
+                
+                print box_path,os.path.getmtime(path),ACDATA[box_path]['updated']
+            else:
+                print 'upload',box_path
+    for bxf in ACDATA.keys():
+        path = SYNC_FOLDER+bxf
+        parent,base = os.path.split(path)
+        if os.path.exists(path):
+            if os.path.isfile(path)
+                
+        else:
+            os.makedirs(parent)
+            ftw = open(path,'wb')
+            data = BOX.download(api_key=API_KEY,auth_token=AUTH_TOKEN,file_id=ACDATA[box_path])
+            ftw.write(data)
+            # c = pycurl.Curl()
+            # c.setopt(c.URL,url.encode('utf-8'))
+            # # fp.close(
+            # c.setopt(c.HTTPPOST,[ ("file", filename), 
+            #               ("share", arg['share']), 
+            #               (filename, 
+            #                          (c.FORM_FILE, filename, 
+            #                           c.FORM_CONTENTTYPE, get_content_type(filename)))
+            #             ])
+            # c.setopt(c.PROGRESSFUNCTION, progress)
+            # storage = StringIO()
+            # c.setopt(pycurl.WRITEFUNCTION, storage.write)
+            # c.setopt(c.NOPROGRESS,0)
+            # c.perform()
+	
+           
+
+    
 
 if __name__ == "__main__":
     
@@ -258,30 +314,33 @@ if __name__ == "__main__":
                 sys.exit(0)
             else:
                 print r'input only "y" or "n" or just press Enter plz.'
-                
+    try:
+        data_file = open('.data.p','rb')
+        ACDATA=pickle.load(data_file)
+        logging.info('load data')
+       
+    except:
+        actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['simple'])
+        logging.info(actree.status[0].elementText)
+        print actree.tree[0].elementName
     
-    
-    # try:
-    #     data_file = open('data.p','rb')
-    #     ACDATA=pickle.load(data_file)
-    #     logging.info('load data')
+        ACDATA = _updata(actree.tree,'0',{},'')
+        logging.debug(ACDATA)
+        with open('.data.p','wb') as data_file:
+            pickle.dump(ACDATA,data_file)
         
-    # except:
-        
+    BOX_FOLDER_ID=ACDATA[BOX_FOLDER]['id']
+    actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=BOX_FOLDER_ID,params=['simple'])
+    ACDATA = _updata(actree.tree,'0',{},'/')
+    logging.debug(ACDATA)
     #     actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
     #     logging.info(actree.status[0].elementText)
     #     ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
     #     print ACDATA
     #     with open('data.p','wb') as data_file:
     #         pickle.dump(ACDATA,data_file)
-    actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['simple'])
-    logging.info(actree.status[0].elementText)
-    print actree.tree[0].elementName
-    ACDATA = _updata(actree.tree,'0',{},'')
-    logging.debug(ACDATA)
-    with open('.data.p','wb') as data_file:
-        pickle.dump(ACDATA,data_file)
 
+    
     
     event_handler = SyncEventHandler()
     
@@ -292,7 +351,8 @@ if __name__ == "__main__":
         while True:
              #---------FULL SYNC ------------------ every five min
             
-            time.sleep(1)
+            time.sleep(300)
+            logging.debug('5 min')
     except KeyboardInterrupt:
         print 'Saving'
         with open('.data.p','wb') as data_file:
