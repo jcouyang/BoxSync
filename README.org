@@ -14,7 +14,7 @@ So I wrote a simple sync client for who like to sync your Box.net's
 *NOW it's a BETA version, but still better don't sync any importent folder for now*
 
 ** Features
-Now it only has the following simple features:(only *oneway(client=>Box)* sync implemented)
+Now it only has the following simple features:(Try the new 2way sync <=> Version!!)
 -upload new folders and files 
 -delete files &folders 
 -rename files & folders
