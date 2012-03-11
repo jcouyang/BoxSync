@@ -38,14 +38,14 @@ def draw_progress(percent):
     width=50
     marks = math.floor(width * (percent / 100.0))
     spaces = math.floor(width - marks)
-
     loader = '[' + ('=' * (int(marks)-1)) +'>'+ (' ' * int(spaces)) + ']'
-
     sys.stdout.write("%s %d%%\r" % (loader, percent))
     sys.stdout.flush()
+
+    
 def progress(download_t, download_d, upload_t, upload_d):
         # print "Total to download", download_t
-        # print "Total downloaded", download_d
+    # print "Total downloaded", download_d
     
     if download_t != 0 and download_t!=download_d:
         percent = download_d/download_t*100
@@ -252,7 +252,23 @@ class BoxDotNet(object):
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
 
-    
+    def download(self,path,auth_token,file_id):
+        ftw = open(path,'wb')
+        c = pycurl.Curl()
+        url='https://www.box.net/api/1.0/download/'+auth_token+'/'+file_id
+        logging.debug(url)
+        c.setopt(c.URL,url.encode('utf-8'))
+        c.setopt(c.PROGRESSFUNCTION, progress)
+        c.setopt(pycurl.WRITEFUNCTION, ftw.write)
+        c.setopt(c.NOPROGRESS,0)
+        # c.setopt(c.RETURNTRANSFER,False)
+        c.perform()
+        loader = '[' + ('=' * (49)) +'>'+ ']'
+	sys.stdout.write("%s %d%%\r" % (loader, 100))
+	sys.stdout.flush()
+	sys.stdout.write("\n")
+        c.close()
+        ftw.close()
     def upload(self, filename, **arg):
         """
         Upload a file to box.net.
@@ -267,36 +283,6 @@ class BoxDotNet(object):
                 sys.stderr.write("Box.net api: warning: unknown parameter \"%s\" sent to Box.net.upload\n" % (a))
 
         url = 'http://upload.box.net/api/1.0/upload/%s/%s' % (arg['auth_token'], arg['folder_id'])
-
-        # # construct POST data
-        # boundary = mimetools.choose_boundary()
-        # body = ""
-
-        # # filename
-        # body += "--%s\r\n" % (boundary)
-        # body += 'Content-Disposition: form-data; name="share"\r\n\r\n'
-        # body += "%s\r\n" % (arg['share'])
-
-        # body += "--%s\r\n" % (boundary)
-        # body += "Content-Disposition: form-data; name=\"file\";"
-        # body += " filename=\"%s\"\r\n" % filename
-        # body += "Content-Type: %s\r\n\r\n" % get_content_type(filename)
-
-        #print body
-
-        # fp = file(filename, "rb")
-        # data = fp.read()
-        
-
-        # postData = body + data + \
-        #     ("\r\n--%s--" % (boundary))
-
-        # request = urllib2.Request(url.encode('utf-8'))
-        # request.add_data(postData)
-        # request.add_header("Content-Type", \
-        #     "multipart/form-data; boundary=%s" % boundary)
-        # response = urllib2.urlopen(request)
-        # rspXML = response.read()
 
 	c = pycurl.Curl()
 	

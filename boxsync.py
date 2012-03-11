@@ -26,6 +26,43 @@ class BoxError(Exception):
     """Exception class for errors received from Facebook."""
     pass
 
+def download(box_cwd,src):
+    BOX.download(src,AUTH_TOKEN,ACDATA[box_cwd]['id'])
+    LCDATA[box_cwd]={}
+    rs=BOX.get_file_info(
+            file_id=ACDATA[box_cwd]['id'],
+            api_key=API_KEY,
+            auth_token=AUTH_TOKEN)
+    logging.debug(rs.status[0].elementText)
+    LCDATA[box_cwd]['id']=rs.info[0].file_id[0].elementText
+    LCDATA[box_cwd]['updated']=os.path.getmtime(src)
+    logging.info("[uploaded] %s to %s", src, box_cwd)
+def upload(box_cwd,src,parent):
+    if not ACDATA.has_key(parent):
+        create_folder(ACDATA,parent)
+    rs=BOX.upload(
+        filename=src.encode('utf-8'),
+        folder_id=ACDATA[parent]['id'],
+        share=SHARE,
+        api_key=API_KEY,
+        auth_token=AUTH_TOKEN)
+    status = rs.status[0].elementText
+    if status =='upload_ok':
+        ACDATA[box_cwd]={}
+        ACDATA[box_cwd]['id']=rs.files[0].file[0]['id']
+        ACDATA[box_cwd]['parent']=rs.files[0].file[0]['folder_id']
+        rs=BOX.get_file_info(
+            file_id=ACDATA[box_cwd]['id'],
+            api_key=API_KEY,
+            auth_token=AUTH_TOKEN)
+        logging.debug(rs.status[0].elementText)
+        ACDATA[box_cwd]['updated']=rs.info[0].file_id[0].elementText
+        LCDATA[box_cwd]={}
+        LCDATA[box_cwd]['id']=ACDATA[box_cwd]['id']
+        LCDATA[box_cwd]['updated']=os.path.getmtime(src)
+        logging.info("[uploaded] %s to %s", src, box_cwd)
+    else:
+        logging.warning(status)  
 def create_folder(ACDATA,dir):
     parent,base=os.path.split(dir)
     if ACDATA.has_key(parent):
@@ -84,6 +121,7 @@ class SyncEventHandler(FileSystemEventHandler):
             status = rs.status[0].elementText
             if status =='s_delete_node':
                 ACDATA.pop(box_cwd)
+                LCDATA.pop(box_cwd)
                 logging.info("Deleted %s",box_cwd)
             else:
                 logging.warning(status)
@@ -135,24 +173,8 @@ class SyncEventHandler(FileSystemEventHandler):
                 logging.info("Uploading %s: %s", what, cwd)
                 # print type(event.src_path),event.src_path
                 parent,base=os.path.split(box_cwd)
-                if not ACDATA.has_key(parent):
-                    create_folder(ACDATA,parent)
-                rs=BOX.upload(
-                    filename=event.src_path,
-                    folder_id=ACDATA[parent]['id'],
-                    share=SHARE,
-                    api_key=API_KEY,
-                    auth_token=AUTH_TOKEN)
-                status = rs.status[0].elementText
-                if status =='upload_ok':
-                    ACDATA[box_cwd]={}
-                    ACDATA[box_cwd]['id']=rs.files[0].file[0]['id']
-                    ACDATA[box_cwd]['parent']=rs.files[0].file[0]['folder_id']
-
-                    logging.info("created Dir %s to %s", scr,box_cwd)
-                else:
-                    logging.warning(status)
-                    logging.info("uploaded %s to %s", cwd, box_cwd)
+                upload(box_cwd,src,parent)
+                    
         except KeyError,e:
             print 'KeyError',e
         
@@ -195,6 +217,7 @@ class SyncEventHandler(FileSystemEventHandler):
                 status = rs.status[0].elementText
                 if status =='s_rename_node':
                     ACDATA[box_dest]=ACDATA.pop(box_cwd)
+                    LCDATA[box_dest]=LCDATA.pop(box_cwd)
                     logging.info("Renamed Dir %s to %s",box_cwd,box_dest)
                 else:
                     logging.warning(status)
@@ -211,7 +234,7 @@ class SyncEventHandler(FileSystemEventHandler):
                 status = rs.status[0].elementText
                 if status =='s_move_node':
                     ACDATA[box_dest]=ACDATA.pop(box_cwd)
-
+                    LCDATA[box_dest]=LCDATA.pop(box_cwd)
                     logging.info("Moved Dir %s to %s",box_cwd,box_dest)
                 else:
                     logging.warning(status)
@@ -219,6 +242,8 @@ class SyncEventHandler(FileSystemEventHandler):
                 actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=BOX_FOLDER_ID,params=['simple'])
                 logging.info(actree.status[0].elementText)
                 ACDATA = _updata(actree.tree,'0',{},'/')
+                LCDATA = indexing()
+                logging.info('reindex')
         except KeyError,e:
             print 'KeyError',e
             
@@ -229,6 +254,7 @@ def _updata(xml,id,data,prefix):
             data[prefix+item['name']]={}
             data[prefix+item['name']]['id']=item['id']
             data[prefix+item['name']]['parent']=id
+            data[prefix+item['name']]['folder']=True
             parent=''.join([prefix,item['name']])+'/'
             try:
                 _updata(item.folders[0].folder,item['id'],data,parent)
@@ -244,52 +270,66 @@ def _updata(xml,id,data,prefix):
             data[prefix+item['file_name']]['parent']=id
             data[prefix+item['file_name']]['updated']=item['updated']
             data[prefix+item['file_name']]['share']=item['shared']
-            data[prefix+item['file_name']]['sha1']=item['sha1']
+            data[prefix+item['file_name']]['folder']=False
     return data
-
-def full_sync():
+  
+def full_sync(firstsync):
+    acset=set(ACDATA.keys())
+    global LCDATA
     for top, dirs, files in os.walk(SYNC_FOLDER):
         for nm in files:
-            path = os.path.join(top,nm)
+            path = os.path.join(top,nm).decode('utf-8')
             box_path  = BOX_FOLDER+path.replace(SYNC_FOLDER,'')
+            if nm[0]=='.' or os.path.isdir(path):
+                continue
             if ACDATA.has_key(box_path):#compare mod time
-                subs= os.path.getmtime(path)-int(ACDATA[box_path]['updated'])
-                if subs<-5:
-                    print 'download',path
-                elif subs>5:
-                    print 'upload',path
-                else:
-                    hashlib.sha1()
+                acset.remove(box_path)
+                print ACDATA[box_path],path
+                if os.path.getmtime(path)-float(ACDATA[box_path]['updated'])<0:
+                    logging.debug( 'download %s',path)
+                    download(box_path,path)
+                    # BOX.download(path,AUTH_TOKEN,ACDATA[box_path]['id'])
+                elif os.path.getmtime(path)-float(LCDATA[box_path]['updated'])>0:
+                    logging.debug('upload %s',path)
+                    upload(box_path,path,os.path.split(box_path)[0])
             else:
-                print 'upload',box_path
-    for bxf in ACDATA.keys():
-        path = SYNC_FOLDER+bxf
+                if LCDATA.has_key(box_path):
+                    if firstsync:
+                         upload(box_path,path,os.path.split(box_path)[0])
+                    logging.debug('server deleted %s',path)
+                else:
+                    logging.debug('new in local %s',path)
+                    upload(box_path,path,os.path.split(box_path)[0])
+            
+    for bxf in acset:
+        path = SYNC_FOLDER+bxf.replace(BOX_FOLDER,'')
         parent,base = os.path.split(path)
-        if not (os.path.exists(path) or os.path.isdir(path)):
-            os.makedirs(parent)
-            ftw = open(path,'wb')
-            c = pycurl.Curl()
-            url='https://www.box.net/api/1.0/download/'+AUTH_TOKEN+'/'+ACDATA[bxf]['id']
-            logging.debug(url)
-            c.setopt(c.URL,url.encode('utf-8'))
-            c.setopt(c.PROGRESSFUNCTION, boxdotnet.progress)
-            storage = StringIO()
-            c.setopt(pycurl.WRITEFUNCTION, storage.write)
-            c.setopt(c.NOPROGRESS,1)
-            c.perform()
-            c.close()
-            ftw.write(storage.getValue())
-	
-def indexing(LCDATA):
+        if ACDATA[bxf]['folder']:continue
+        if not  os.path.isdir(path):
+            if not os.path.exists(path):
+                if LCDATA.has_key(bxf):
+                    logging.debug('local deleted %s',bxf)
+                    print 'Do you want to delete %s on server as well?[Y/n]' % bxf
+                else:
+                    logging.debug('server new %s',bxf)
+                    logging.debug('https://www.box.net/api/1.0/download/'+AUTH_TOKEN+'/'+ACDATA[bxf]['id'])
+                    if not os.path.exists(parent):
+                        os.makedirs(parent)
+                    download(bxf,path)
+                    # BOX.download(path,AUTH_TOKEN,ACDATA[bxf]['id'])
+def indexing():
+    newdata={}
     for top, dirs, files in os.walk(SYNC_FOLDER):
         for nm in files:
             if nm[0]!='.':
                 path = os.path.join(top,nm)
-                box_path  = BOX_FOLDER+path.replace(SYNC_FOLDER,'')
-                LCDATA[box_path]={}
-                LCDATA[box_path]['id']=''
-                LCDATA[box_path]['upadate']=os.path.getmtime(path)
-
+                box_path  = BOX_FOLDER+path.replace(SYNC_FOLDER,'').decode('utf-8')
+                if box_path in ACDATA:
+                    newdata[box_path]=ACDATA[box_path]
+                    continue
+                newdata[box_path]={}
+                newdata[box_path]['updated']=os.path.getmtime(path)
+    return newdata
 
     
 
@@ -355,7 +395,7 @@ if __name__ == "__main__":
         logging.info('loaded data')
        
     except:
-        logging.info(actree.status[0].elementText)
+        
         actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['simple'])
         logging.info(actree.status[0].elementText)
         print actree.tree[0].elementName
@@ -370,16 +410,20 @@ if __name__ == "__main__":
     ACDATA = _updata(actree.tree,'0',{},'/')
     logging.debug(ACDATA)
 
+    firstsync=False
     try:
         logging.info('indexing sync folers')
         LCDATA = pickle.load(open('.index.p','rb'))
         logging.info('read indexing file')
     except :
-        indexing(LCDATA)
+        LCDATA = indexing()
+        firstsync=True
         with open('.index.p','wb') as data_file:
             pickle.dump(LCDATA,data_file)
     logging.debug(LCDATA)
     logging.info('completed indexing')
+
+    
     #     actree = BOX.get_account_tree(api_key=API_KEY,auth_token=AUTH_TOKEN,folder_id=0,params=['nozip','simple'])
     #     logging.info(actree.status[0].elementText)
     #     ACDATA = _updata(actree.tree[0].folder[0].folders[0].folder,'0',{},'/')
@@ -390,7 +434,8 @@ if __name__ == "__main__":
     
     
     event_handler = SyncEventHandler()
-    
+    full_sync(firstsync)
+    logging.info('Finished Full Sync! Leavit along so any change in your folder can be sync to Box!')
     observer = Observer()
     observer.schedule(event_handler, path=SYNC_FOLDER, recursive=True)
     observer.start()
@@ -405,7 +450,9 @@ if __name__ == "__main__":
         with open('.data.p','wb') as data_file:
             pickle.dump(ACDATA,data_file)
             print 'Saved'
-        data_file.close()
+        with open('.index.p','wb') as index_file:
+            pickle.dump(LCDATA,index_file)
+            print 'index file Saved'
         print 'Bye!'
         observer.stop()
 
