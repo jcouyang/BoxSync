@@ -1,5 +1,4 @@
-
-* BoxSync
+* BoxSync beta
 /A client for Box.net/
 
 ** Why BoxSync
@@ -12,8 +11,7 @@ So I wrote a simple sync client for who like to sync your Box.net's
 50G storage  just Like DropBox Client
 
 
-=But it's a alpha version(I am testing right now), so you better don't sync any importent
-folder for now=
+*NOW it's a BETA version, but still better don't sync any importent folder for now*
 
 ** Features
 Now it only has the following simple features:(only *oneway(client=>Box)* sync implemented)
@@ -21,10 +19,12 @@ Now it only has the following simple features:(only *oneway(client=>Box)* sync i
 -delete files &folders 
 -rename files & folders
 -move files & folders
+-modified local file will be transmited to Box
 -upload processing bar
+-download processing bar
+-two way sync during at startup
 
 ** TODO Tasks								:dsf:
--two way sync during  a presetting time
 -share folders and files
 -sync multiple Folders
 -maybe in GUI version
